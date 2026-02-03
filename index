@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa del Ecosistema NESsT</title>
+    <!-- Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React y Babel para ejecutar el código en el navegador -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .node-selected { filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6)); }
+        svg { background-color: white; border-radius: 1.5rem; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // Componentes de Iconos Inline SVG para evitar errores de librerías externas
+        const IconNetwork = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+        );
+        const IconGlobe = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        );
+        const IconMapPin = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        );
+        const IconSearch = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        );
+        const IconInfo = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        );
+        const IconUsers = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        );
+        const IconLink = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        );
+        const IconChevronRight = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        );
+
+        const MENTIONS_DATA = [
+            { empresa: "Savia", actor: "Start-Up Chile", pais: "Chile", tipo: "Aceleradora Pública" },
+            { empresa: "Savia", actor: "Uper", pais: "Chile", tipo: "Crowdfunding" },
+            { empresa: "Savia", actor: "Inversionistas Ángeles", pais: "Chile", tipo: "Inversor Privado" },
+            { empresa: "Ecocitex", actor: "CORFO", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Ecocitex", actor: "Inversionistas Ángeles", pais: "Chile", tipo: "Inversor Privado" },
+            { empresa: "Lazarillo", actor: "Invexor", pais: "Chile", tipo: "Venture Capital" },
+            { empresa: "Lazarillo", actor: "Amarena", pais: "Chile", tipo: "Venture Capital" },
+            { empresa: "Lazarillo", actor: "Banco Estado", pais: "Chile", tipo: "Banca" },
+            { empresa: "Lazarillo", actor: "Magical Startups", pais: "Chile", tipo: "Aceleradora" },
+            { empresa: "Ágil", actor: "CORFO", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Ágil", actor: "Inversionistas Ángeles", pais: "Chile", tipo: "Inversor Privado" },
+            { empresa: "Wenkimey", actor: "CORFO", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Wenkimey", actor: "Sercotec", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Wenkimey", actor: "INDAP", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "NG Seeds", actor: "CORFO", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "NG Seeds", actor: "BID Lab", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "NG Seeds", actor: "Elementa Foods", pais: "Chile", tipo: "Inversor Privado" },
+            { empresa: "Rewe", actor: "INDAP", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Rewe", actor: "Sercotec", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Rewe", actor: "GIZ", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "Alma del Panal", actor: "CORFO", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Alma del Panal", actor: "INDAP", pais: "Chile", tipo: "Entidad Pública" },
+            { empresa: "Disruptia", actor: "USAID", pais: "Colombia", tipo: "Cooperación" },
+            { empresa: "Disruptia", actor: "Social Skin", pais: "Colombia", tipo: "Aceleradora Corporativa" },
+            { empresa: "Disruptia", actor: "Impactamos", pais: "Colombia", tipo: "Aceleradora Corporativa" },
+            { empresa: "Disruptia", actor: "EAN Impacta", pais: "Colombia", tipo: "Aceleradora" },
+            { empresa: "SiembraCo", actor: "Social Skin", pais: "Colombia", tipo: "Aceleradora Corporativa" },
+            { empresa: "SiembraCo", actor: "Start Factory", pais: "Colombia", tipo: "Aceleradora" },
+            { empresa: "Okolo", actor: "SENA", pais: "Colombia", tipo: "Entidad Pública" },
+            { empresa: "Okolo", actor: "Friends & Family", pais: "Colombia", tipo: "Inversor Privado" },
+            { empresa: "Agrosolidaria", actor: "USAID", pais: "Colombia", tipo: "Cooperación" },
+            { empresa: "Agrosolidaria", actor: "GIZ", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "Agrosolidaria", actor: "Rain Forest Alliance", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "FCC", actor: "ProColombia", pais: "Colombia", tipo: "Entidad Pública" },
+            { empresa: "FCC", actor: "Rain Forest Alliance", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "ASOPROCEGUA", actor: "Rain Forest Alliance", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "ASOPROCEGUA", actor: "WWF", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "Novatio", actor: "BID Lab", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "Empanacombi", actor: "Fundación Romero", pais: "Perú", tipo: "Fundación" },
+            { empresa: "Empanacombi", actor: "Kunan", pais: "Perú", tipo: "Red de Emprendimiento" },
+            { empresa: "PesCo", actor: "ProInnóvate", pais: "Perú", tipo: "Entidad Pública" },
+            { empresa: "PesCo", actor: "Agora Partnerships", pais: "Regional", tipo: "Aceleradora" },
+            { empresa: "PesCo", actor: "GIZ", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "PesCo", actor: "Credicorp Capital", pais: "Perú", tipo: "Mentoría Financiera" },
+            { empresa: "AFIMAD", actor: "BID Lab", pais: "Regional", tipo: "Cooperación" },
+            { empresa: "AFIMAD", actor: "Profonampe", pais: "Perú", tipo: "Fondo Ambiental" },
+            { empresa: "ManejeBem", actor: "Sitawi", pais: "Brasil", tipo: "Fondo de Impacto" },
+            { empresa: "Coopersapó", actor: "Sitawi", pais: "Brasil", tipo: "Fondo de Impacto" },
+            { empresa: "Coopersapó", actor: "Whole Planet", pais: "Regional", tipo: "Inversor de Impacto" },
+        ];
+
+        const COLORS = {
+            empresa: '#10b981',
+            actor: '#3b82f6',
+            Chile: '#ef4444',
+            Colombia: '#f97316',
+            Perú: '#a855f7',
+            Brasil: '#22c55e',
+            Regional: '#64748b'
+        };
+
+        function App() {
+            const [selectedNode, setSelectedNode] = useState(null);
+            const [filterCountry, setFilterCountry] = useState('Todos');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [positions, setPositions] = useState({});
+
+            const { nodes, links, actorStats } = useMemo(() => {
+                const nodesMap = new Map();
+                const linksArray = [];
+                const stats = {};
+
+                MENTIONS_DATA.forEach(item => {
+                    const matchSearch = item.empresa.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                      item.actor.toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchCountry = filterCountry === 'Todos' || item.pais === filterCountry || item.pais === 'Regional';
+
+                    if (!matchSearch || !matchCountry) return;
+
+                    if (!nodesMap.has(item.empresa)) {
+                        nodesMap.set(item.empresa, { id: item.empresa, label: item.empresa, type: 'empresa', pais: item.pais });
+                    }
+                    if (!nodesMap.has(item.actor)) {
+                        nodesMap.set(item.actor, { id: item.actor, label: item.actor, type: 'actor', subTipo: item.tipo, pais: item.pais });
+                    }
+                    stats[item.actor] = (stats[item.actor] || 0) + 1;
+                    linksArray.push({ source: item.empresa, target: item.actor });
+                });
+
+                return { 
+                    nodes: Array.from(nodesMap.values()), 
+                    links: linksArray,
+                    actorStats: stats 
+                };
+            }, [filterCountry, searchTerm]);
+
+            useEffect(() => {
+                const newPositions = {};
+                const center = { x: 350, y: 350 };
+                const empresas = nodes.filter(n => n.type === 'empresa');
+                const actores = nodes.filter(n => n.type === 'actor');
+
+                empresas.forEach((n, i) => {
+                    const angle = (i / (empresas.length || 1)) * Math.PI * 2;
+                    newPositions[n.id] = { 
+                        x: center.x + Math.cos(angle) * 110, 
+                        y: center.y + Math.sin(angle) * 110 
+                    };
+                });
+
+                actores.forEach((n, i) => {
+                    const angle = (i / (actores.length || 1)) * Math.PI * 2;
+                    newPositions[n.id] = { 
+                        x: center.x + Math.cos(angle) * 260, 
+                        y: center.y + Math.sin(angle) * 260 
+                    };
+                });
+
+                setPositions(newPositions);
+            }, [nodes]);
+
+            const getActiveConnections = () => {
+                if (!selectedNode) return [];
+                return links.filter(l => l.source === selectedNode.id || l.target === selectedNode.id);
+            };
+
+            return (
+                <div className="min-h-screen p-4 md:p-8">
+                    <header className="max-w-7xl mx-auto mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-emerald-500 p-3 rounded-xl text-white shadow-lg shadow-emerald-200">
+                                <IconNetwork />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-800">Mapa del Ecosistema NESsT</h1>
+                                <p className="text-slate-500 text-sm">Visualización interactiva de conexiones</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-3 w-full md:w-auto">
+                            <div className="relative flex-grow md:flex-grow-0">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <IconSearch />
+                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar..." 
+                                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <select 
+                                className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+                                value={filterCountry}
+                                onChange={(e) => setFilterCountry(e.target.value)}
+                            >
+                                <option value="Todos">Global / Todos</option>
+                                <option value="Chile">🇨🇱 Chile</option>
+                                <option value="Colombia">🇨🇴 Colombia</option>
+                                <option value="Perú">🇵🇪 Perú</option>
+                                <option value="Brasil">🇧🇷 Brasil</option>
+                            </select>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        <div className="lg:col-span-3 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative" style={{ height: '700px' }}>
+                            <svg viewBox="50 50 600 600" className="w-full h-full">
+                                {links.map((link, idx) => {
+                                    const start = positions[link.source];
+                                    const end = positions[link.target];
+                                    if (!start || !end) return null;
+                                    const isRelevant = selectedNode && (selectedNode.id === link.source || selectedNode.id === link.target);
+                                    return (
+                                        <line 
+                                            key={idx} x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+                                            stroke={isRelevant ? '#10b981' : '#e2e8f0'}
+                                            strokeWidth={isRelevant ? 2.5 : 1}
+                                            strokeOpacity={isRelevant ? 1 : 0.4}
+                                        />
+                                    );
+                                })}
+
+                                {nodes.map((node) => {
+                                    const pos = positions[node.id];
+                                    if (!pos) return null;
+                                    const isHub = node.type === 'actor' && actorStats[node.id] > 1;
+                                    const isSelected = selectedNode && selectedNode.id === node.id;
+                                    const radius = node.type === 'empresa' ? 10 : 8 + (actorStats[node.id] * 4);
+
+                                    return (
+                                        <g key={node.id} transform={`translate(${pos.x}, ${pos.y})`} onClick={() => setSelectedNode(node)} className="cursor-pointer">
+                                            <circle 
+                                                r={radius}
+                                                fill={isSelected ? '#1e293b' : (isHub ? '#facc15' : (node.type === 'empresa' ? COLORS.empresa : COLORS.actor))}
+                                                stroke="#fff" strokeWidth={2}
+                                            />
+                                            {(isSelected || isHub || nodes.length < 20) && (
+                                                <text dy={radius + 18} textAnchor="middle" className={`text-[9px] font-bold ${isSelected ? 'fill-slate-900' : 'fill-slate-500'}`}>
+                                                    {node.label}
+                                                </text>
+                                            )}
+                                        </g>
+                                    );
+                                })}
+                            </svg>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <div className="text-blue-500"><IconInfo /></div>
+                                    Detalles
+                                </h2>
+                                {selectedNode ? (
+                                    <div className="animate-in fade-in duration-300">
+                                        <div className="flex items-center gap-3 mb-5">
+                                            <div className={`p-3 rounded-2xl text-white ${selectedNode.type === 'empresa' ? 'bg-emerald-500' : 'bg-blue-500'}`}>
+                                                {selectedNode.type === 'empresa' ? <IconUsers /> : <IconGlobe />}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-lg leading-tight">{selectedNode.label}</h3>
+                                                <p className="text-xs font-semibold text-slate-400">{selectedNode.type === 'empresa' ? 'Empresa Social' : selectedNode.subTipo}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-slate-700 bg-slate-50 p-3 rounded-xl mb-4">
+                                            <div className="text-red-400"><IconMapPin /></div>
+                                            <span className="text-sm font-medium">Ubicación: {selectedNode.pais}</span>
+                                        </div>
+                                        <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-3 border-t pt-4">Conexiones detectadas</h4>
+                                        <div className="flex flex-col gap-2">
+                                            {getActiveConnections().map((conn, i) => (
+                                                <div key={i} className="flex items-center gap-2 text-sm text-slate-600">
+                                                    <div className="text-slate-300"><IconChevronRight /></div>
+                                                    <span>{selectedNode.id === conn.source ? conn.target : conn.source}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-10">
+                                        <div className="mx-auto mb-4 text-slate-300 flex justify-center"><IconLink /></div>
+                                        <p className="text-slate-400 text-sm">Selecciona un nodo para ver su red de apoyo.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
